@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatbot-dev
+  namespace: dev
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 25%
+  selector:
+    matchLabels:
+      app: chatbot-dev
+  template:
+    metadata:
+      labels:
+        app: chatbot-dev
+    spec:
+      containers:
+      - image: __DOCKER_REPOSITORY__/__IMAGE_NAME__:__IMAGE_TAG__
+        name: chatbot-dev
+        imagePullPolicy: Always
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "dev"
+        ports:
+        - containerPort: 8099
+      imagePullSecrets:
+        - name: regcred-prod
