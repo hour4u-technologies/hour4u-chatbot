@@ -2,7 +2,7 @@
 ![Production Deploy](https://github.com/Hour4u-Dev/job-api/workflows/Production%20Deploy/badge.svg)
 ------------------------------
 
-Job Service 
+Chatbot Service 
 
 •	Spring boot 2.2.4.RELEASEE<br>
 
