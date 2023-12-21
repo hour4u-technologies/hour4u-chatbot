@@ -1,0 +1,74 @@
+name: dev-kubernetes-deployer
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:  dev
+  workflow_dispatch:
+
+jobs:
+  build-deploy-aks:
+    runs-on: ubuntu-latest
+    env:
+      DOCKER_REPOSITORY: hour4u
+      IMAGE_NAME: chatbot-service-dev
+      IMAGE_TAG: ${GITHUB_SHA::7}
+      CLUSTER_NAME: hour4u-prod
+      DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+    
+    steps:
+    - name: Git Checkout
+      uses: actions/checkout@v2
+    
+    - name: Set build tag
+      shell: bash
+      run: echo "IMAGE_TAG=`echo ${GITHUB_SHA} | cut -c1-8`" >> $GITHUB_ENV
+    
+    - name: Build Docker Image
+      run:
+        docker build . --tag $DOCKER_REPOSITORY/$IMAGE_NAME:$IMAGE_TAG --no-cache
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      continue-on-error: true
+      with:
+        image-ref: 'docker.io/${{ env.DOCKER_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}'
+        format: 'table'
+        exit-code: '1'
+        ignore-unfixed: true
+        vuln-type: 'os,library'
+        severity: 'MEDIUM,HIGH,CRITICAL'
+
+    - name: Login to Docker Hub
+      run: |
+        echo "${{ secrets.DOCKER_REPOSITORY_PASSWORD }}" | docker login -u $DOCKER_REPOSITORY --password-stdin
+  
+    - name: Push Image to Docker Hub
+      run:
+        docker push $DOCKER_REPOSITORY/$IMAGE_NAME:$IMAGE_TAG
+   
+    - name: Update deployment file
+      uses: cschleiden/replace-tokens@v1
+      with:
+        files: '["iac/dev/chatbot-dev.yml"]'
+        tokenPrefix: __
+        tokenSuffix: __
+      env:
+        DOCKER_REPOSITORY: ${{ env.DOCKER_REPOSITORY }}
+        IMAGE_NAME: ${{ env.IMAGE_NAME }}
+        IMAGE_TAG: ${{ env.IMAGE_TAG }}
+
+    - name: Install doctl
+      uses: digitalocean/action-doctl@v2
+      with:
+        token: ${{ env.DIGITALOCEAN_ACCESS_TOKEN }}
+
+    - name: Save DigitalOcean kubeconfig
+      run: doctl kubernetes cluster kubeconfig save $CLUSTER_NAME
+
+    - name: Deploy to DigitalOcean Kubernetes
+      run: kubectl apply -f iac/dev/chatbot-dev.yml
+
+    - name: Verify deployment
+      run: kubectl rollout status deployment/chatbot-dev -n dev
