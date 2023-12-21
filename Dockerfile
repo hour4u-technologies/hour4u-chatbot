@@ -1,5 +1,5 @@
 ### BUILD image
-FROM maven:3-jdk-17 as builder
+FROM maven:3.8.4-openjdk-17 as builder
 
 MAINTAINER Codemiro Technologies <dv.singh@codemiro.com>
 
